@@ -1,0 +1,64 @@
+version: "3.8"
+
+networks:
+  ease-commerce-courier-net:
+    name: ease-commerce-courier-net
+
+services:
+  ease-commerce-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: development
+    command: sh -c "npx sequelize-cli db:migrate && node --watch index.js"
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    env_file: .env
+    environment:
+      DB_HOST: database
+    volumes:
+      - .:/home/node/app
+      - /home/node/app/node_modules
+      - /home/node/app/logs
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - ease-commerce-courier-net
+    restart: unless-stopped
+
+  database:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-easecommerce}
+    volumes:
+      - ./docker_volumes_data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-easecommerce}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ease-commerce-courier-net
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      - ./docker_volumes_data/pgadmin:/var/lib/pgadmin
+    depends_on:
+      - database
+    networks:
+      - ease-commerce-courier-net
+    restart: unless-stopped
